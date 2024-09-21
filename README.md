@@ -2,7 +2,7 @@
 
 Este projeto é um exemplo de trainer desenvolvido em Delphi, criado para manipular a porcentagem do poder de ataque das skills em um servidor privado do jogo **Priston Tale**. A interface do trainer permite listar processos em execução, anexar e modificar valores em endereços de memória para ajustar a performance das habilidades no jogo.
 
-![Trainer Screenshot](trainer_screenshot.png)
+![Trainer Screenshot](trainer_screenshot.png.png)
 
 > **Atenção**: Este trainer foi desenvolvido **apenas para fins educacionais**. O uso deste código para manipulação de memória de processos em servidores de jogos pode violar os termos de serviço do servidor e resultar em penalidades. Use com responsabilidade.
 
