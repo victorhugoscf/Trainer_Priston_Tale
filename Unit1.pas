@@ -4,7 +4,8 @@ interface
 
 uses
   Winapi.Windows, Winapi.Messages, Winapi.TlHelp32, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
-  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ExtCtrls;
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ExtCtrls,
+  RandomCaptionUnit, ProcessManagerUnit, MemoryManagerUnit;
 
 type
   TForm1 = class(TForm)
@@ -33,13 +34,9 @@ type
     procedure EditValue4Change(Sender: TObject);
 
   private
-    { Private declarations }
     FProcessHandle: THandle;
     procedure ListProcesses(const Filter: string = '');
-    function OpenProcessByPID(PID: DWORD): THandle;
-    procedure WriteMemory(Address: Pointer; Value: DWORD);
   public
-    { Public declarations }
   end;
 
 var
@@ -56,65 +53,22 @@ begin
 end;
 
 procedure TForm1.Timer1Timer(Sender: TObject);
-var
-  RandomCaption: string;
-  i: Integer;
-  RandomChar: Char;
 begin
-  Randomize;
-
-
-  // Gera uma string aleatória misturando letras e números
-  RandomCaption := '';
-  for i := 1 to 10 do
-  begin
-    if Random(2) = 0 then
-      RandomChar := Chr(Ord('A') + Random(26))
-    else
-      RandomChar := Chr(Ord('0') + Random(10));
-
-    RandomCaption := RandomCaption + RandomChar;
-  end;
-
-  // Define a caption do formulário
-  Self.Caption := RandomCaption;
+  Self.Caption := TRandomCaptionGenerator.GenerateRandomCaption;
 end;
-
-
 
 procedure TForm1.ListProcesses(const Filter: string = '');
 var
-  Snapshot: THandle;
-  ProcessEntry: TProcessEntry32;
-  ProcessName: string;
+  ProcessManager: TProcessManager;
+  ProcessList: TStringList;
 begin
-  ProcessListBox.Clear;
-
-  Snapshot := CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-  if Snapshot = INVALID_HANDLE_VALUE then
-  begin
-    ShowMessage('Failed to create process snapshot. Error Code: ' + IntToStr(GetLastError));
-    Exit;
+  ProcessManager := TProcessManager.Create;
+  try
+    ProcessList := ProcessManager.ListProcesses(Filter);
+    ProcessListBox.Items.Assign(ProcessList);
+  finally
+    ProcessManager.Free;
   end;
-
-  ProcessEntry.dwSize := SizeOf(ProcessEntry);
-  if not Process32First(Snapshot, ProcessEntry) then
-  begin
-    ShowMessage('Failed to retrieve process list. Error Code: ' + IntToStr(GetLastError));
-    CloseHandle(Snapshot);
-    Exit;
-  end;
-
-  repeat
-    ProcessName := ProcessEntry.szExeFile;
-    // Filtra pelo nome do processo se o filtro não estiver vazio
-    if (Filter = '') or (Pos(UpperCase(Filter), UpperCase(ProcessName)) > 0) then
-    begin
-      ProcessListBox.Items.Add(Format('%d: %s', [ProcessEntry.th32ProcessID, ProcessName]));
-    end;
-  until not Process32Next(Snapshot, ProcessEntry);
-
-  CloseHandle(Snapshot);
 end;
 
 procedure TForm1.ProcessListBoxDblClick(Sender: TObject);
@@ -130,43 +84,34 @@ end;
 
 procedure TForm1.searchChange(Sender: TObject);
 begin
-  ListProcesses(search.Text); // Atualiza a lista de processos com base no texto de busca
+  ListProcesses(search.Text);
 end;
 
 procedure TForm1.BtnAttachClick(Sender: TObject);
 var
   PID: DWORD;
+  ProcessManager: TProcessManager;
 begin
   if TryStrToInt(EditPID.Text, Integer(PID)) then
   begin
-    FProcessHandle := OpenProcessByPID(PID);
-    if FProcessHandle = 0 then
-      ShowMessage('Erro ao tentar anexar ao processo. Error Code: ' + IntToStr(GetLastError))
-    else
-      ShowMessage('Anexado ao processo.');
+    ProcessManager := TProcessManager.Create;
+    try
+      FProcessHandle := ProcessManager.OpenProcessByPID(PID);
+      if FProcessHandle = 0 then
+        ShowMessage('Erro ao tentar anexar ao processo. Error Code: ' + IntToStr(GetLastError))
+      else
+        ShowMessage('Anexado ao processo.');
+    finally
+      ProcessManager.Free;
+    end;
   end
   else
     ShowMessage('PID inválido.');
 end;
 
-
-
-procedure TForm1.EditValue4Change(Sender: TObject);
-begin
-  // Adicione aqui o código desejado para o evento EditValue4Change, se necessário
-end;
-
-function TForm1.OpenProcessByPID(PID: DWORD): THandle;
-begin
-  Result := OpenProcess(PROCESS_VM_WRITE or PROCESS_VM_READ or PROCESS_VM_OPERATION, False, PID);
-end;
-
 procedure TForm1.BtnApplyClick(Sender: TObject);
 var
-  Address1, Address2, Address3, Address4: Pointer;
-  Value1, Value2, Value3, Value4: DWORD;
-  Written: SIZE_T;
-  Success: Boolean;
+  MemoryManager: TMemoryManager;
 begin
   if FProcessHandle = 0 then
   begin
@@ -174,57 +119,23 @@ begin
     Exit;
   end;
 
-  // Endereços para alteração (substitua pelos endereços reais)
-  Address1 := Pointer($00ccccec);
-  Address2 := Pointer($00cccf6c);
-  Address3 := Pointer($00ccd084);
-  Address4 := Pointer($00CCD19C);
+  MemoryManager := TMemoryManager.Create(FProcessHandle);
+  try
+    // Endereços e valores para aplicar
+    MemoryManager.WriteMemory(Pointer($00CC5894), StrToIntDef(EditValue1.Text, 0));
+    MemoryManager.WriteMemory(Pointer($00CC54AC), StrToIntDef(EditValue2.Text, 0));
+    MemoryManager.WriteMemory(Pointer($00CC568C), StrToIntDef(EditValue3.Text, 0));
+    MemoryManager.WriteMemory(Pointer($00CC5524), StrToIntDef(EditValue4.Text, 0));
 
-  // Valores para escrever
-  Value1 := StrToIntDef(EditValue1.Text, 0);
-  Value2 := StrToIntDef(EditValue2.Text, 0);
-  Value3 := StrToIntDef(EditValue3.Text, 0);
-  Value4 := StrToIntDef(EditValue4.Text, 0);
-
-  // Inicializa a variável de sucesso como verdadeira
-  Success := True;
-
-  // Tenta escrever na memória e verifica se a operação foi bem-sucedida
-  if not WriteProcessMemory(FProcessHandle, Address1, @Value1, SizeOf(Value1), Written) then
-  begin
-    Success := False;
-    ShowMessage('Failed to write memory to Address1. Error Code: ' + IntToStr(GetLastError));
+    ShowMessage('Valores aplicados com sucesso.');
+  finally
+    MemoryManager.Free;
   end;
-
-  if not WriteProcessMemory(FProcessHandle, Address2, @Value2, SizeOf(Value2), Written) then
-  begin
-    Success := False;
-    ShowMessage('Failed to write memory to Address2. Error Code: ' + IntToStr(GetLastError));
-  end;
-
-  if not WriteProcessMemory(FProcessHandle, Address3, @Value3, SizeOf(Value3), Written) then
-  begin
-    Success := False;
-    ShowMessage('Failed to write memory to Address3. Error Code: ' + IntToStr(GetLastError));
-  end;
-
-  if not WriteProcessMemory(FProcessHandle, Address4, @Value4, SizeOf(Value4), Written) then
-  begin
-    Success := False;
-    ShowMessage('Failed to write memory to Address4. Error Code: ' + IntToStr(GetLastError));
-  end;
-
-  // Mostra mensagem de sucesso apenas se todas as operações foram bem-sucedidas
-  if Success then
-    ShowMessage('Ativado com sucesso.');
 end;
 
-procedure TForm1.WriteMemory(Address: Pointer; Value: DWORD);
-var
-  Written: SIZE_T;
+procedure TForm1.EditValue4Change(Sender: TObject);
 begin
-  if not WriteProcessMemory(FProcessHandle, Address, @Value, SizeOf(Value), Written) then
-    ShowMessage('Erro ao ativar. Error Code: ' + IntToStr(GetLastError));
+  // Lógica adicional para EditValue4Change, se necessário
 end;
 
 end.
