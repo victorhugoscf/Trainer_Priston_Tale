@@ -1,0 +1,27 @@
+# Ignorar arquivos temporários e de compilação do Delphi
+*.dcu          # Compiled unit files
+*.dcp          # Delphi package files
+*.dsk          # Desktop files
+*.dproj        # Delphi project files
+*.local        # Local project settings
+*.dproj.local  # Local project settings (Delphi)
+*.bdsproj      # BDS project files
+
+# Ignorar diretórios de build
+bin/           # Binary output folder
+obj/           # Object output folder
+output/        # Custom output folder
+
+# Ignorar arquivos de log
+*.log          # Log files
+
+# Ignorar arquivos de configuração do IDE
+*.cfg          # Configuration files
+*.sublime-project
+*.sublime-workspace
+
+# Ignorar diretórios de dependências
+packages/      # Packages directory
+
+# Ignorar a pasta __history
+__history/     # History folder
